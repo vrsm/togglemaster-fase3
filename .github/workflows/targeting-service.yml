@@ -1,5 +1,6 @@
 name: targeting-service
 on:
+  workflow_dispatch:
   pull_request:
     paths: ['targeting-service-main/**']
   push:
