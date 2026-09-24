@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: togglemaster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      serviceAccountName: analytics-service
+      containers:
+        - name: analytics-service
+          image: 523694734848.dkr.ecr.us-east-1.amazonaws.com/analytics-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8005
+              name: http
+          env:
+            - name: PORT
+              value: "8005"
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: AWS_SQS_URL
+              value: "https://sqs.us-east-1.amazonaws.com/523694734848/toggle-master"
+            - name: AWS_DYNAMODB_TABLE
+              value: "ToggleMasterAnalytics"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: togglemaster
+spec:
+  selector:
+    app: analytics-service
+  ports:
+    - port: 8005
+      targetPort: 8005
+      protocol: TCP
+      name: http
+  type: ClusterIP

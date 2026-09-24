@@ -1,0 +1,269 @@
+#### Youtube ####
+https://youtu.be/hQbXcN8WGb0
+
+#### Github ####
+https://github.com/vrsm/togglemaster
+
+#### Aluno ####
+Vinicius Matos - rm370385
+
+﻿PARTE 1 - Docker Compose (Local)
+
+1. Subir todo o ambiente
+docker compose up -d
+
+2. Verificar logs
+
+docker compose logs --tail=20 | grep -Ei "stacktrace"
+Não pode haver stacktrace.
+
+PARTE 2 - Testar microsserviços
+
+### Auth Service ###
+
+1. Testar o health do endpoint
+
+curl http://localhost:8001/health
+
+2. Criar API Key
+
+curl -X POST http://localhost:8001/admin/keys \
+-H "Authorization: Bearer tm_key_14700ed377e62b253882073469888517a999a1a033a35074dade4519a0401d8b" \
+-H "Content-Type: application/json" \
+-d '{"name":"evaluation-service"}'
+
+Obs: Alterar essa chave no docker compose e todos os tokens abaixo, e depois reiniciar apenas o container de evaluation com o comando abaixo:
+
+docker compose up -d --force-recreate evaluation-service
+
+3. Validar API Key
+
+curl http://localhost:8001/validate \
+-H "Authorization: Bearer tm_key_14700ed377e62b253882073469888517a999a1a033a35074dade4519a0401d8b"
+
+
+### Flag Service ###
+
+1. Testar o helath do endpoint
+curl http://localhost:8002/health
+
+2. Criar flag
+
+curl -X POST \
+http://localhost:8002/flags \
+-H "Authorization: Bearer tm_key_14700ed377e62b253882073469888517a999a1a033a35074dade4519a0401d8b" \
+-H "Content-Type: application/json" \
+-d '{
+"name":"nova-home",
+"description":"Nova Home",
+"is_enabled":true
+}'
+
+3. Buscar flag
+
+curl \
+http://localhost:8002/flags/nova-home \
+-H "Authorization: Bearer tm_key_14700ed377e62b253882073469888517a999a1a033a35074dade4519a0401d8b"
+
+4. Verificar banco
+
+docker exec -it flag-db psql -U postgres -d flags_db
+select * from flags;
+
+### Targeting Service ###
+
+1. Testar o health do endpoint 
+
+curl http://localhost:8003/health
+
+2. Criar regra
+
+curl -X POST \
+http://localhost:8003/rules \
+-H "Authorization: Bearer tm_key_14700ed377e62b253882073469888517a999a1a033a35074dade4519a0401d8b" \
+-H "Content-Type: application/json" \
+-d '{
+"flag_name":"nova-home",
+"rules":{
+"type":"PERCENTAGE",
+"value":50
+}
+}'
+
+3. Buscar regra
+
+curl \
+http://localhost:8003/rules/nova-home \
+-H "Authorization: Bearer tm_key_14700ed377e62b253882073469888517a999a1a033a35074dade4519a0401d8b"
+
+4. Verificar banco
+
+docker exec -it targeting-db psql -U postgres -d targeting_db
+select * from targeting_rules;
+
+### Evaluation Service ###
+
+1. Testar o health do endpoint
+
+curl http://localhost:8004/health
+
+2. Avaliar flag
+
+curl \
+"http://localhost:8004/evaluate?user_id=user123&flag_name=nova-home"
+
+3. Testar cache Redis
+
+1) Abrir os logs do Evaluation Service
+docker compose logs -f evaluation-service
+2) Limpar completamente o Redis
+docker exec -it redis redis-cli FLUSHALL
+3) Primeira chamada
+curl "http://localhost:8004/evaluate?user_id=user123&flag_name=nova-home"
+4) Segunda chamada (mesma URL)
+curl "http://localhost:8004/evaluate?user_id=user123&flag_name=nova-home"
+
+### Analytics Service ###
+
+1. Testar o health do endpoint
+
+curl http://localhost:8005/health
+
+2. Mostrar worker
+
+docker compose logs analytics-service -f
+
+3. Fazer avaliação
+
+curl \
+"http://localhost:8004/evaluate?user_id=user123&flag_name=nova-home"
+
+4. Mostrar mensagem chegando
+
+5. Mostrar DynamoDB
+
+aws dynamodb scan \
+--table-name toggle-master \
+--endpoint-url http://localhost:8000
+
+PARTE 3 - Kubernetes
+
+1. Mostrar cluster
+
+kubectl get nodes
+
+2. Mostrar Deployments
+
+kubectl get deploy -A
+
+3. Mostrar Pods
+
+kubectl get pods -n togglemaster
+
+4. Mostrar Services
+
+kubectl get svc -n togglemaster
+
+5. Mostrar Ingress
+
+kubectl get ingress -n togglemaster
+ou
+kubectl get svc ingress-nginx-controller -n ingress-nginx
+
+6. Chamada pública
+
+curl http://LOADBALANCER/evaluate?user_id=user123&flag_name=nova-home
+
+PARTE 4 - Escalabilidade Evaluation
+
+1. Exibir processamento HPA
+
+kubectl get hpa -n togglemaster
+
+2. Gerar carga
+
+hey -z 2m -c 100 \
+http://LOADBALANCER/evaluate?user_id=user123&flag_name=nova-home
+
+3. Em outro terminal
+
+watch kubectl get hpa -n togglemaster
+
+4. Exibir todos os pods no namespace togglemaster
+
+watch kubectl get pods -n togglemaster
+
+PARTE 5 - Escalabilidade Analytics
+
+1. Enviar várias mensagens
+
+Pode ser via script
+
+for i in {1..200}
+do
+curl ...
+done
+ou AWS CLI
+aws sqs send-message ...
+
+2. Exibir o processamento do HPA
+
+kubectl get hpa
+
+3. Exibir todos os pods e o aumento do Analytics.
+
+kubectl get pods
+
+PARTE 6 - DynamoDB
+
+1. Exibir os eventos 
+
+aws dynamodb scan \
+--table-name toggle-master
+Mostrar novos eventos.
+
+PARTE 7 - Bancos
+
+1. Mostrar rapidamente
+
+### Auth ###
+
+select * from api_keys;
+
+### Flag ###
+
+select * from flags;
+
+### Targeting ###
+
+select * from targeting_rules;
+
+### Redis ###
+
+keys *
+
+### DynamoDB ###
+
+scan
+
+PARTE 8 - Desafios
+
+Comentar:
+    • IAM Role do Lab. 
+    • Secrets do Kubernetes. 
+    • Integração entre microsserviços. 
+    • Configuração do HPA. 
+    • Problemas de autenticação entre Evaluation e Auth. 
+    • Permissões do DynamoDB. 
+    • Diferença entre ambiente local (Docker Compose) e ambiente AWS (EKS). 
+
+PARTE 9 - Mostrar os repositórios
+Abrir o GitHub.
+Mostrar:
+    • docker-compose.yaml 
+    • k8s/ 
+    • auth-service 
+    • flag-service 
+    • targeting-service 
+    • evaluation-service 
+    • analytics-service 

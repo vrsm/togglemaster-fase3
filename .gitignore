@@ -1,0 +1,13 @@
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+.env
+.env.*
+*.pem
+
+# LocalStack runtime/cache
+.localstack/
+
+# Terraform generated plans
+*.tfplan

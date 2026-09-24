@@ -1,0 +1,9 @@
+aws_region = "us-east-1"
+project_name = "togglemaster"
+academy_mode = true
+lab_role_name = "LabRole"
+db_password = "CHANGE_ME"
+master_key = "CHANGE_ME_LONG_RANDOM_VALUE"
+service_api_key = ""
+gitops_repo_url = "https://github.com/SEU_USUARIO/togglemaster-gitops.git"
+gitops_target_revision = "main"

@@ -1,0 +1,23 @@
+# Checklist Fase 3
+
+- [x] Terraform para networking
+- [x] EKS + node group
+- [x] 3 RDS PostgreSQL
+- [x] ElastiCache Redis
+- [x] DynamoDB ToggleMasterAnalytics/event_id
+- [x] SQS Standard
+- [x] 5 ECRs
+- [x] Backend S3 + use_lockfile
+- [x] Workflows CI por serviço
+- [x] Build/test
+- [x] Lint/static analysis
+- [x] SAST (gosec/bandit)
+- [x] SCA (Trivy fs)
+- [x] Bloqueio CRITICAL
+- [x] Docker image scan
+- [x] Tag por commit SHA
+- [x] GitOps repository
+- [x] ArgoCD
+- [x] Auto-sync/self-heal
+- [x] Kubernetes manifests
+- [x] HPA CPU para evaluation/analytics
