@@ -71,7 +71,7 @@ jobs:
       run: bandit -r . -ll
 
     - name: SCA - Trivy filesystem
-      uses: aquasecurity/trivy-action@0.28.0
+      uses: aquasecurity/trivy-action@v0.36.0
       with:
         scan-type: fs
         scan-ref: targeting-service-main
@@ -83,7 +83,7 @@ jobs:
       run: docker build -t ${{ env.ECR_REGISTRY }}/targeting-service:${{ github.sha }} .
 
     - name: Container scan - Trivy
-      uses: aquasecurity/trivy-action@0.28.0
+      uses: aquasecurity/trivy-action@v0.36.0
       with:
         image-ref: ${{ env.ECR_REGISTRY }}/targeting-service:${{ github.sha }}
         severity: CRITICAL
