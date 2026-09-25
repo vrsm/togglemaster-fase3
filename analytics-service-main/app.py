@@ -38,7 +38,8 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 if not all([AWS_REGION, SQS_QUEUE_URL, DYNAMODB_TABLE_NAME]):
     log.critical(
-        "Erro: AWS_REGION, AWS_SQS_URL e AWS_DYNAMODB_TABLE devem ser definidos."
+        "Erro: AWS_REGION, AWS_SQS_URL e AWS_DYNAMODB_TABLE "
+        "devem ser definidos."
     )
     sys.exit(1)
 
