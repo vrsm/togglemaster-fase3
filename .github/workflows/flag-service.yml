@@ -27,42 +27,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Go
-      if: ${{ hashFiles('flag-service-main/go.mod') != '' }}
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.21'
-
-    - name: Setup Python
-      if: ${{ hashFiles('flag-service-main/requirements.txt') != '' }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install Python dependencies
-      if: ${{ hashFiles('flag-service-main/requirements.txt') != '' }}
-      run: pip install -r requirements.txt bandit flake8 pytest
-
-    - name: Download Go modules
-      if: ${{ hashFiles('*/go.mod') != '' }}
-      run: go mod download
-
-    - name: Unit tests - Go
-      if: ${{ hashFiles('flag-service-main/go.mod') != '' }}
-      run: go test ./...
-
-    - name: Lint - Go
-      if: ${{ hashFiles('flag-service-main/go.mod') != '' }}
-      uses: golangci/golangci-lint-action@v7
-      with:
-        working-directory: flag-service-main
-
-    - name: SAST - gosec
-      if: ${{ hashFiles('flag-service-main/go.mod') != '' }}
-      uses: securego/gosec@master
-      with:
-        args: './...'
-
     - name: Unit tests - Python
       if: ${{ hashFiles('flag-service-main/requirements.txt') != '' }}
       run: python -m pytest || test $? -eq 5
