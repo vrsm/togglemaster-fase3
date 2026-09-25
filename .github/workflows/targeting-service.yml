@@ -27,6 +27,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest flake8 bandit
+
     - name: Unit tests - Python
       if: ${{ hashFiles('targeting-service-main/requirements.txt') != '' }}
       run: python -m pytest || test $? -eq 5
