@@ -124,6 +124,7 @@ jobs:
           repository: ${{ vars.GITOPS_REPOSITORY }}
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
+          persist-credentials: false
 
       - name: Update GitOps image tag
         env:
@@ -161,6 +162,8 @@ jobs:
         working-directory: gitops
         env:
           IMAGE_TAG: ${{ github.sha }}
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          GITOPS_REPOSITORY: ${{ vars.GITOPS_REPOSITORY }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -171,4 +174,7 @@ jobs:
             -m "chore(evaluation-service): deploy ${IMAGE_TAG::7}" \
             || echo "No changes to commit"
 
-          git push
+          git remote set-url origin \
+            "https://x-access-token:${GITOPS_TOKEN}@github.com/${GITOPS_REPOSITORY}.git"
+
+          git push origin main
