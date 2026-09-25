@@ -2,10 +2,14 @@ name: targeting-service
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['targeting-service-main/**']
+    paths:
+      - 'targeting-service-main/**'
+      - '.github/workflows/targeting-service.yml'
   push:
     branches: [main]
-    paths: ['targeting-service-main/**']
+    paths:
+      - 'targeting-service-main/**'
+      - '.github/workflows/targeting-service.yml'
 permissions:
   contents: write
   id-token: write
@@ -92,42 +96,97 @@ jobs:
         exit-code: '1'
 
   publish-and-gitops:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: security-and-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
-        aws-region: us-east-1
-    - name: Login to ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-    - name: Build and push
-      run: |
-        docker build -t $ECR_REGISTRY/targeting-service:${{ github.sha }} targeting-service-main
-        docker push $ECR_REGISTRY/targeting-service:${{ github.sha }}
-    - name: Checkout GitOps
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ vars.GITOPS_REPOSITORY }}
-        token: ${{ secrets.GITOPS_TOKEN }}
-        path: gitops
-    - name: Update image tag
-      run: |
-        python3 - <<'PY2'
-        from pathlib import Path
-        p=Path('gitops/apps/targeting-service/deployment.yaml')
-        s=p.read_text()
-        import re
-        s=re.sub(r'image:.*', 'image: '+str('${{ env.ECR_REGISTRY }}')+'/targeting-service:'+str('${{ github.sha }}'), s)
-        p.write_text(s)
-        PY2
-        cd gitops
-        git config user.name 'github-actions[bot]'
-        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-        git add apps/targeting-service/deployment.yaml
-        git commit -m 'chore(targeting-service): deploy ${GITHUB_SHA::7}' || exit 0
-        git push
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        env:
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/targeting-service:${{ github.sha }} \
+            targeting-service-main
+
+      - name: Push image to ECR
+        env:
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+        run: |
+          docker push \
+            $ECR_REGISTRY/targeting-service:${{ github.sha }}
+
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.GITOPS_REPOSITORY }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+          persist-credentials: false
+
+      - name: Update GitOps image tag
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("gitops/apps/targeting-service/deployment.yaml")
+          text = path.read_text()
+
+          image_tag = os.environ["IMAGE_TAG"]
+          registry = os.environ["ECR_REGISTRY"]
+
+          pattern = (
+              r"(image:\s+"
+              + re.escape(registry)
+              + r"/targeting-service:)[^\s]+"
+          )
+
+          replacement = rf"\g<1>{image_tag}"
+          updated, count = re.subn(pattern, replacement, text)
+
+          if count != 1:
+              raise SystemExit(
+                  f"Expected exactly one targeting-service image, found {count}"
+              )
+
+          path.write_text(updated)
+          PY
+
+      - name: Commit and push GitOps
+        working-directory: gitops
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          GITOPS_REPOSITORY: ${{ vars.GITOPS_REPOSITORY }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add apps/targeting-service/deployment.yaml
+
+          git commit \
+            -m "chore(targeting-service): deploy ${IMAGE_TAG::7}" \
+            || echo "No changes to commit"
+
+          git remote set-url origin \
+            "https://x-access-token:${GITOPS_TOKEN}@github.com/${GITOPS_REPOSITORY}.git"
+
+          git push origin main
