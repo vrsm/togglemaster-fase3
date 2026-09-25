@@ -1,74 +1,85 @@
 name: targeting-service
+
 on:
-  workflow_dispatch:
   pull_request:
     paths:
       - 'targeting-service-main/**'
       - '.github/workflows/targeting-service.yml'
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'targeting-service-main/**'
       - '.github/workflows/targeting-service.yml'
+  workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || 'local' }}
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
 
 jobs:
   security-and-build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: targeting-service-main
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest flake8 bandit
+      - name: Install Python dependencies
+        working-directory: targeting-service-main
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest flake8 bandit
 
-    - name: Unit tests - Python
-      if: ${{ hashFiles('targeting-service-main/requirements.txt') != '' }}
-      run: python -m pytest || test $? -eq 5
+      - name: Unit tests - Python
+        working-directory: targeting-service-main
+        run: |
+          python -m pytest || test $? -eq 5
 
-    - name: Lint - Python
-      if: ${{ hashFiles('targeting-service-main/requirements.txt') != '' }}
-      run: flake8 .
+      - name: Lint - Python
+        working-directory: targeting-service-main
+        run: |
+          flake8 .
 
-    - name: SAST - Bandit
-      if: ${{ hashFiles('targeting-service-main/requirements.txt') != '' }}
-      run: bandit -r . -ll
+      - name: SAST - Bandit
+        working-directory: targeting-service-main
+        run: |
+          bandit -r . -ll
 
-    - name: SCA - Trivy filesystem
-      uses: aquasecurity/trivy-action@v0.36.0
-      with:
-        scan-type: fs
-        scan-ref: targeting-service-main
-        severity: CRITICAL
-        ignore-unfixed: true
-        exit-code: '1'
+      - name: SCA - Trivy filesystem
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: targeting-service-main
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
 
-    - name: Docker build
-      run: docker build -t ${{ env.ECR_REGISTRY }}/targeting-service:${{ github.sha }} .
+      - name: Docker build
+        env:
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/targeting-service:${{ github.sha }} \
+            targeting-service-main
 
-    - name: Container scan - Trivy
-      uses: aquasecurity/trivy-action@v0.36.0
-      with:
-        image-ref: ${{ env.ECR_REGISTRY }}/targeting-service:${{ github.sha }}
-        severity: CRITICAL
-        ignore-unfixed: true
-        exit-code: '1'
+      - name: Container scan - Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ vars.ECR_REGISTRY }}/targeting-service:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
 
   publish-and-gitops:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
@@ -100,9 +111,18 @@ jobs:
       - name: Push image to ECR
         env:
           ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+          AWS_REGION: us-east-1
         run: |
-          docker push \
-            $ECR_REGISTRY/targeting-service:${{ github.sha }}
+          if aws ecr describe-images \
+            --repository-name targeting-service \
+            --image-ids imageTag="${{ github.sha }}" \
+            --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Imagem $ECR_REGISTRY/targeting-service:${{ github.sha }} já existe no ECR."
+            echo "ECR usa tags imutáveis; não será feito overwrite."
+          else
+            docker push \
+              "$ECR_REGISTRY/targeting-service:${{ github.sha }}"
+          fi
 
       - name: Checkout GitOps repository
         uses: actions/checkout@v4
@@ -144,6 +164,18 @@ jobs:
 
           path.write_text(updated)
           PY
+
+      - name: Validate GitOps image
+        working-directory: gitops
+        run: |
+          grep -n "image:" apps/targeting-service/deployment.yaml
+
+          test "$(grep -c \
+            "${ECR_REGISTRY}/targeting-service:${IMAGE_TAG}" \
+            apps/targeting-service/deployment.yaml)" -eq 1
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
 
       - name: Commit and push GitOps
         working-directory: gitops
