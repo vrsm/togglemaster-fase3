@@ -11,15 +11,19 @@ from botocore.exceptions import NoCredentialsError, ClientError
 from flask import Flask, jsonify
 from dotenv import load_dotenv
 
+
 # Configura o logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
 log = logging.getLogger(__name__)
+
 
 # Carrega .env para desenvolvimento local
 load_dotenv()
+
 
 # ---------------------------------------------------------------------
 # Configuração
@@ -27,21 +31,38 @@ load_dotenv()
 
 AWS_REGION = os.getenv("AWS_REGION")
 SQS_QUEUE_URL = os.getenv("AWS_SQS_URL")
-DYNAMODB_TABLE_NAME = os.getenv("AWS_DYNAMODB_TABLE")
+DYNAMODB_TABLE_NAME = os.getenv(
+    "AWS_DYNAMODB_TABLE"
+)
 
-# Opcionais (somente para ambiente local)
+# Opcionais para ambiente local
 SQS_ENDPOINT = os.getenv("SQS_ENDPOINT")
-DYNAMODB_ENDPOINT = os.getenv("DYNAMODB_ENDPOINT")
+DYNAMODB_ENDPOINT = os.getenv(
+    "DYNAMODB_ENDPOINT"
+)
 
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_ACCESS_KEY_ID = os.getenv(
+    "AWS_ACCESS_KEY_ID"
+)
 
-if not all([AWS_REGION, SQS_QUEUE_URL, DYNAMODB_TABLE_NAME]):
+AWS_SECRET_ACCESS_KEY = os.getenv(
+    "AWS_SECRET_ACCESS_KEY"
+)
+
+
+if not all(
+    [
+        AWS_REGION,
+        SQS_QUEUE_URL,
+        DYNAMODB_TABLE_NAME
+    ]
+):
     log.critical(
         "Erro: AWS_REGION, AWS_SQS_URL e AWS_DYNAMODB_TABLE "
         "devem ser definidos."
     )
     sys.exit(1)
+
 
 # ---------------------------------------------------------------------
 # Clientes Boto3
@@ -53,25 +74,33 @@ try:
         "region_name": AWS_REGION,
     }
 
-    # Apenas ambiente local usa credenciais fake
+    # Apenas ambiente local usa credenciais explícitas.
     if AWS_ACCESS_KEY_ID:
-        session_kwargs["aws_access_key_id"] = AWS_ACCESS_KEY_ID
+        session_kwargs[
+            "aws_access_key_id"
+        ] = AWS_ACCESS_KEY_ID
 
     if AWS_SECRET_ACCESS_KEY:
-        session_kwargs["aws_secret_access_key"] = AWS_SECRET_ACCESS_KEY
+        session_kwargs[
+            "aws_secret_access_key"
+        ] = AWS_SECRET_ACCESS_KEY
 
-    session = boto3.Session(**session_kwargs)
+    session = boto3.Session(
+        **session_kwargs
+    )
 
     sqs_kwargs = {}
     dynamodb_kwargs = {}
 
-    # LocalStack
     if SQS_ENDPOINT:
-        sqs_kwargs["endpoint_url"] = SQS_ENDPOINT
+        sqs_kwargs[
+            "endpoint_url"
+        ] = SQS_ENDPOINT
 
-    # DynamoDB Local
     if DYNAMODB_ENDPOINT:
-        dynamodb_kwargs["endpoint_url"] = DYNAMODB_ENDPOINT
+        dynamodb_kwargs[
+            "endpoint_url"
+        ] = DYNAMODB_ENDPOINT
 
     sqs_client = session.client(
         "sqs",
@@ -83,38 +112,66 @@ try:
         **dynamodb_kwargs
     )
 
-    log.info("Clientes Boto3 inicializados na região %s", AWS_REGION)
+    log.info(
+        "Clientes Boto3 inicializados na região %s",
+        AWS_REGION
+    )
 
 except NoCredentialsError:
-    log.critical("Credenciais AWS não encontradas.")
+
+    log.critical(
+        "Credenciais AWS não encontradas."
+    )
+
     sys.exit(1)
 
 except Exception as e:
-    log.critical(f"Erro ao inicializar o Boto3: {e}")
+
+    log.critical(
+        f"Erro ao inicializar o Boto3: {e}"
+    )
+
     sys.exit(1)
+
 
 # ---------------------------------------------------------------------
 # Worker SQS
 # ---------------------------------------------------------------------
-
 
 def process_message(message):
     """Processa uma mensagem da fila."""
 
     try:
 
-        log.info(f"Processando mensagem ID: {message['MessageId']}")
+        log.info(
+            "Processando mensagem ID: %s",
+            message["MessageId"]
+        )
 
-        body = json.loads(message["Body"])
+        body = json.loads(
+            message["Body"]
+        )
 
-        event_id = str(uuid.uuid4())
+        event_id = str(
+            uuid.uuid4()
+        )
 
         item = {
-            "event_id": {"S": event_id},
-            "user_id": {"S": body["user_id"]},
-            "flag_name": {"S": body["flag_name"]},
-            "result": {"BOOL": body["result"]},
-            "timestamp": {"S": body["timestamp"]},
+            "event_id": {
+                "S": event_id
+            },
+            "user_id": {
+                "S": body["user_id"]
+            },
+            "flag_name": {
+                "S": body["flag_name"]
+            },
+            "result": {
+                "BOOL": body["result"]
+            },
+            "timestamp": {
+                "S": body["timestamp"]
+            },
         }
 
         dynamodb_client.put_item(
@@ -130,7 +187,9 @@ def process_message(message):
 
         sqs_client.delete_message(
             QueueUrl=SQS_QUEUE_URL,
-            ReceiptHandle=message["ReceiptHandle"]
+            ReceiptHandle=message[
+                "ReceiptHandle"
+            ]
         )
 
     except json.JSONDecodeError:
@@ -160,7 +219,9 @@ def process_message(message):
 def sqs_worker_loop():
     """Loop principal do worker."""
 
-    log.info("Iniciando worker SQS...")
+    log.info(
+        "Iniciando worker SQS..."
+    )
 
     while True:
 
@@ -172,24 +233,38 @@ def sqs_worker_loop():
                 WaitTimeSeconds=20,
             )
 
-            messages = response.get("Messages", [])
+            messages = response.get(
+                "Messages",
+                []
+            )
 
             if not messages:
                 continue
 
-            log.info("Recebidas %d mensagens.", len(messages))
+            log.info(
+                "Recebidas %d mensagens.",
+                len(messages)
+            )
 
             for message in messages:
                 process_message(message)
 
         except ClientError as e:
 
-            log.error("Erro do Boto3 no worker: %s", e)
+            log.error(
+                "Erro do Boto3 no worker: %s",
+                e
+            )
+
             time.sleep(10)
 
         except Exception as e:
 
-            log.error("Erro inesperado no worker: %s", e)
+            log.error(
+                "Erro inesperado no worker: %s",
+                e
+            )
+
             time.sleep(10)
 
 
@@ -202,7 +277,11 @@ app = Flask(__name__)
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify(
+        {
+            "status": "ok"
+        }
+    )
 
 
 # ---------------------------------------------------------------------
@@ -210,22 +289,33 @@ def health():
 # ---------------------------------------------------------------------
 
 def start_worker():
+
     worker = threading.Thread(
         target=sqs_worker_loop,
         daemon=True
     )
+
     worker.start()
 
 
 start_worker()
 
 
+# ---------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------
+
 if __name__ == "__main__":
 
-    port = int(os.getenv("PORT", "8005"))
+    port = int(
+        os.getenv(
+            "PORT",
+            "8005"
+        )
+    )
 
     app.run(
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104
         port=port,
         debug=False
     )
