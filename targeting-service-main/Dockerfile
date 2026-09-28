@@ -11,7 +11,7 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY requirements.txt .
 
 RUN python -m pip install --no-cache-dir --upgrade \
-    pip \
+    "pip<26.2" \
     setuptools \
     wheel
 
