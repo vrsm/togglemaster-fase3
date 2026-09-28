@@ -70,6 +70,8 @@ jobs:
           ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
         run: |
           docker build \
+            --pull \
+            --no-cache \
             -t $ECR_REGISTRY/targeting-service:${{ github.sha }} \
             targeting-service-main
 
@@ -105,6 +107,8 @@ jobs:
           ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
         run: |
           docker build \
+            --pull \
+            --no-cache \
             -t $ECR_REGISTRY/targeting-service:${{ github.sha }} \
             targeting-service-main
 
