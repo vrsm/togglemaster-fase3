@@ -1,39 +1,81 @@
-# ToggleMaster — POSTECH Tech Challenge Fase 3
+# ToggleMaster — GitOps | Fase 3
 
-Implementação baseada no código entregue na Fase 2 e nos requisitos do documento da Fase 3.
+Repositório GitOps do projeto **ToggleMaster — POSTECH Tech Challenge — Fase 3**.
 
-## Repositórios
-- Este repositório: microsserviços, Docker, Terraform e GitHub Actions.
-- `gitops/`: conteúdo para o repositório GitOps/ArgoCD.
+Este repositório contém os manifestos Kubernetes utilizados para o gerenciamento declarativo dos cinco microsserviços da aplicação por meio de **GitOps e ArgoCD**.
 
-## Comece localmente
-```bash
-docker compose up --build
-```
+---
 
-Depois gere uma API key no `auth-service` conforme `docs/EXECUTION-ORDER.md` e reinicie o `evaluation-service` com `SERVICE_API_KEY`.
+## Visão geral
 
-Serviços:
-- auth: http://localhost:8001
-- flag: http://localhost:8002
-- targeting: http://localhost:8003
-- evaluation: http://localhost:8004
-- analytics: http://localhost:8005
+O ToggleMaster é composto por cinco microsserviços:
 
-## AWS
-Leia `docs/EXECUTION-ORDER.md` e depois `terraform/bootstrap/README.md`.
+- **Auth Service** — autenticação e gerenciamento de usuários
+- **Flag Service** — gerenciamento das feature flags
+- **Targeting Service** — definição e avaliação das regras de segmentação
+- **Evaluation Service** — avaliação das feature flags para cada usuário
+- **Analytics Service** — processamento e persistência dos eventos de avaliação
 
-### Academy
-Use `academy_mode = true` e `LabRole`.
+Nesta fase, o ciclo de vida dos serviços foi automatizado utilizando:
 
-### Conta pessoal
-Use `academy_mode = false`; o Terraform criará as roles EKS/Node necessárias.
+- Terraform
+- Amazon EKS
+- Amazon ECR
+- GitHub Actions
+- DevSecOps
+- GitOps
+- ArgoCD
+- Kubernetes
 
-## Segurança
-- Não commite `terraform.tfvars`.
-- Não commite Secrets reais.
-- Configure as variáveis/Secrets do GitHub antes do push.
-- O CI bloqueia vulnerabilidades CRITICAL via Trivy.
+---
 
-## Observação
-O documento da Fase 2 menciona 4 bancos locais, mas o código fornecido contém 3 PostgreSQL + Redis + DynamoDB + LocalStack/SQS. Este pacote preserva a arquitetura efetivamente implementada no código e a exigência da Fase 3 de 3 RDS, Redis, DynamoDB e SQS.
+## Arquitetura de entrega
+
+O fluxo de implantação é baseado em GitOps:
+
+```text
+┌──────────────────────┐
+│      GitHub           │
+│  togglemaster-fase3   │
+└──────────┬───────────┘
+           │
+           │ Push / Pull Request
+           ▼
+┌──────────────────────┐
+│   GitHub Actions      │
+│                      │
+│ • Testes             │
+│ • Lint               │
+│ • SAST               │
+│ • SCA                │
+│ • Docker Build       │
+│ • Trivy              │
+└──────────┬───────────┘
+           │
+           │ imagem com SHA do commit
+           ▼
+┌──────────────────────┐
+│     Amazon ECR        │
+└──────────┬───────────┘
+           │
+           │ atualização do manifesto
+           ▼
+┌──────────────────────┐
+│   GitOps Repository   │
+│ togglemaster-gitops   │
+└──────────┬───────────┘
+           │
+           │ ArgoCD monitora
+           ▼
+┌──────────────────────┐
+│        ArgoCD         │
+│                      │
+│ Sync + Self Heal     │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│      Amazon EKS       │
+│                      │
+│  5 microsserviços    │
+└──────────────────────┘
