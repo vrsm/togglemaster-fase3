@@ -63,3 +63,5 @@ O fluxo completo de entrega da aplicação é:
                     │                      │
                     │  5 microsserviços    │
                     └──────────────────────┘
+
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/61fb136a-d7fc-492c-b637-dd929f7d5ccd" />
