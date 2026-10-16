@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -29,6 +31,16 @@ type App struct {
 
 func main() {
 	_ = godotenv.Load() // Carrega .env para dev local
+
+	tracingShutdown, tracingErr := initTracing(context.Background())
+	if tracingErr != nil {
+		log.Fatalf("Não foi possível inicializar OpenTelemetry: %v", tracingErr)
+	}
+	defer func() {
+		if err := shutdownTracing(tracingShutdown); err != nil {
+			log.Printf("Erro ao finalizar OpenTelemetry: %v", err)
+		}
+	}()
 
 	// --- Configuração ---
 	port := os.Getenv("PORT")
@@ -109,7 +121,8 @@ func main() {
 
 	// Cliente HTTP
 	httpClient := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout:   5 * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
 
 	// Cria a instância da App
@@ -127,10 +140,13 @@ func main() {
 
 	mux.HandleFunc("/health", app.healthHandler)
 	mux.HandleFunc("/evaluate", app.evaluationHandler)
+	registerMetricsHandler(mux)
 
 	log.Printf("Serviço de Avaliação (Go) rodando na porta %s", port)
 
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	tracedHandler := otelhttp.NewHandler(mux, "evaluation-service")
+	handler := metricsMiddleware(tracedHandler)
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
 }
