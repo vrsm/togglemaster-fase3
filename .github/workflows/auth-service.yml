@@ -31,7 +31,7 @@ jobs:
       if: ${{ hashFiles('auth-service-main/go.mod') != '' }}
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.26.0'
 
     - name: Setup Python
       if: ${{ hashFiles('auth-service-main/requirements.txt') != '' }}

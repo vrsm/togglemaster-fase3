@@ -58,12 +58,15 @@ func main() {
 	// Endpoint público para validar uma chave
 	mux.HandleFunc("/validate", app.validateKeyHandler)
 
-	// Endpoints de "admin" para criar/gerenciar chaves
-	// Eles são protegidos pelo middleware de autenticação
+	// Endpoints administrativos continuam protegidos pela MASTER_KEY.
 	mux.Handle("/admin/keys", app.masterKeyAuthMiddleware(http.HandlerFunc(app.createKeyHandler)))
 
+	// Endpoint de métricas para o Prometheus.
+	registerMetricsHandler(mux)
+
 	log.Printf("Serviço de Autenticação (Go) rodando na porta %s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	handler := metricsMiddleware(mux)
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
 }
