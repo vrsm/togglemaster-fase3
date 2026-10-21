@@ -4,7 +4,7 @@ psycopg2-binary==2.9.5
 gunicorn==22.0.0
 python-dotenv==0.21.0
 requests==2.32.5
-urllib3==2.7.0
+urllib3==2.8.0
 
 # OpenTelemetry tracing
 opentelemetry-distro==0.52b1
