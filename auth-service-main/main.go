@@ -1,6 +1,8 @@
 package main
 
 import (
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"context"
 	"database/sql"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/joho/godotenv"
@@ -18,6 +20,16 @@ type App struct {
 func main() {
 	// Carrega o .env para desenvolvimento local. Em produção, isso não fará nada.
 	_ = godotenv.Load()
+
+	tracingShutdown, tracingErr := initTracing(context.Background())
+	if tracingErr != nil {
+		log.Fatalf("Falha ao inicializar OpenTelemetry: %v", tracingErr)
+	}
+	defer func() {
+		if err := shutdownTracing(tracingShutdown); err != nil {
+			log.Printf("Falha ao encerrar OpenTelemetry: %v", err)
+		}
+	}()
 
 	// --- Configuração ---
 	port := os.Getenv("PORT")
@@ -66,6 +78,7 @@ func main() {
 
 	log.Printf("Serviço de Autenticação (Go) rodando na porta %s", port)
 	handler := metricsMiddleware(mux)
+	handler = otelhttp.NewHandler(handler, "auth-service")
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
